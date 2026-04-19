@@ -8,13 +8,14 @@ from pynput import keyboard, mouse
 import time
 import threading
 import tkinter as tk
+import queue
 
 from base_screen import BaseScreen
 from base_button import Button
 from title_screen import TitleScreen
 from game_screen import GameScreen
 from score_screen import ScoreScreen
-from winner_screen import WinnerScreen
+from end_screen import EndScreen
 
 
 COLOUR_BLACK = (0, 0, 0)
@@ -37,7 +38,7 @@ class Snake:
     ave = 0.0
     count = 0
 
-    def __init__(self, width, height, fullscreen, xfullscreen):
+    def __init__(self, width, height, fullscreen, xfullscreen, player_name):
         if fullscreen in TRUE_SET:
             self.width, self.height = self.get_screen_resolution()
         else:
@@ -49,15 +50,15 @@ class Snake:
         )
         self.game_screen: BaseScreen = GameScreen(
             "game_screen",
-            top=self.height / 5,
+            top=int(self.height / 5),
             width=self.width,
-            height=self.height * 4 / 5,
+            height=int(self.height * 4 / 5),
         )
         self.score_screen: BaseScreen = ScoreScreen(
-            "score_screen", width=self.width, height=self.height / 5
+            "score_screen", width=self.width, height=int(self.height / 5)
         )
-        self.winner_screen: BaseScreen = WinnerScreen(
-            "winner_screen", width=self.width, height=self.height
+        self.end_screen: BaseScreen = EndScreen(
+            "end_screen", width=self.width, height=self.height, player_name=player_name
         )
         if xfullscreen in TRUE_SET:
             self.display = pygame.display.set_mode(
@@ -70,6 +71,7 @@ class Snake:
 
         self.clock = pygame.time.Clock()
         self.previous_time_tick = time.time()
+        self.callback_queue = queue.Queue()
 
     def on_callback(self, callable):
         threading.Thread(target=callable, daemon=True).start()
@@ -86,7 +88,7 @@ class Snake:
         self.title_screen.on_end()
         self.game_screen.on_end()
         self.score_screen.on_end()
-        self.winner_screen.on_end()
+        self.end_screen.on_end()
         print("Restarting")
         time.sleep(2)
         self.on_start()
@@ -96,7 +98,7 @@ class Snake:
         self.title_screen.on_end()
         self.game_screen.on_end()
         self.score_screen.on_end()
-        self.winner_screen.on_end()
+        self.end_screen.on_end()
         print("exiting")
         print("------------------------------")
         print(f"Top FPS was {self.top_fps}")
@@ -127,6 +129,15 @@ class Snake:
                 f"Error retrieving resolution: {e}. Setting to default resolution ({DEFAULT_WIDTH}, {DEFAULT_HEIGHT})"
             )
             return None, None
+
+    def register_on_callback(self, name: str, value: bool) -> bool:
+        self.callback_queue.put(value)
+        return value
+
+    def pop_callback(self) -> bool:
+        if self.callback_queue.empty:
+            LookupError("nothing in queue")
+        return self.callback_queue.get(block=False)
 
 
 def main():
@@ -161,6 +172,12 @@ def main():
         default="False",
         help="Sets to exclusive fullscreen.",
     )
+    parser.add_argument(
+        "--player_name",
+        type=str,
+        default="NO NAME",
+        help="Sets the name of the player.",
+    )
 
     args = parser.parse_args()
     args_info = {
@@ -168,6 +185,7 @@ def main():
         "height": int(args.height),
         "fullscreen": args.fullscreen.lower(),
         "xfullscreen": args.exclusive_fullscreen.lower(),
+        "player_name": args.player_name,
     }
 
     snake_game = Snake(
@@ -175,6 +193,7 @@ def main():
         height=args_info["height"],
         fullscreen=args_info["fullscreen"],
         xfullscreen=args_info["xfullscreen"],
+        player_name=args_info["player_name"],
     )
     snake_game.on_start()
 
@@ -198,23 +217,30 @@ def main():
             snake_game.count = snake_game.count + 1
 
             # -------------------------------------------------------
-
+            button_free = True
             snake_game.display.fill(COLOUR_BLACK)
 
-            if snake_game.winner_screen.showing:
-                snake_game.title_screen.on_end()
-                snake_game.game_screen.on_end()
-                snake_game.score_screen.on_end()
-                snake_game.winner_screen.set_winner(
-                    snake_game.player_score >= snake_game.winning_score
-                )
-                snake_game.winner_screen.on_start()
-                snake_game.winner_screen.render(snake_game.display)
+            if snake_game.end_screen.showing:
+                snake_game.end_screen.render(snake_game.display)
 
             else:
                 mouse_pos = pygame.mouse.get_pos()
                 snake_game.title_screen.render(snake_game.display, mouse_pos)
-                snake_game.game_screen.render(snake_game.display, mouse_pos)
+                snake_game.game_screen.render(
+                    snake_game.display,
+                    snake_game.register_on_callback,
+                    mouse_pos,
+                )
+
+                if snake_game.game_screen.showing and not snake_game.game_screen.paused:
+                    while not snake_game.callback_queue.empty():
+                        if snake_game.pop_callback():
+                            # print("crashed")
+                            snake_game.title_screen.on_end()
+                            snake_game.game_screen.on_end()
+                            snake_game.score_screen.on_end()
+                            snake_game.end_screen.set_score(snake_game.player_score)
+                            snake_game.end_screen.on_start()
 
                 snake_game.player_score = snake_game.game_screen.player_score
                 snake_game.score_screen.player_score = snake_game.player_score
@@ -237,35 +263,42 @@ def main():
                             snake_game.toggle_pause()
                     if event.key == pygame.K_r and not snake_game.title_screen.showing:
                         snake_game.on_restart()
-
-                    if (
-                        snake_game.game_screen.head_direction != 3
-                        and event.key == pygame.K_LEFT
-                    ):
-                        snake_game.game_screen.head_direction = 1
-                    elif (
-                        snake_game.game_screen.head_direction != 4
-                        and event.key == pygame.K_UP
-                    ):
-                        snake_game.game_screen.head_direction = 2
-                    elif (
-                        snake_game.game_screen.head_direction != 1
-                        and event.key == pygame.K_RIGHT
-                    ):
-                        snake_game.game_screen.head_direction = 3
-                    elif (
-                        snake_game.game_screen.head_direction != 2
-                        and event.key == pygame.K_DOWN
-                    ):
-                        snake_game.game_screen.head_direction = 4
+                    if button_free:
+                        if (
+                            snake_game.game_screen.head_direction != 3
+                            and event.key == pygame.K_LEFT
+                        ):
+                            snake_game.game_screen.head_direction = 1
+                        elif (
+                            snake_game.game_screen.head_direction != 4
+                            and event.key == pygame.K_UP
+                        ):
+                            snake_game.game_screen.head_direction = 2
+                        elif (
+                            snake_game.game_screen.head_direction != 1
+                            and event.key == pygame.K_RIGHT
+                        ):
+                            snake_game.game_screen.head_direction = 3
+                        elif (
+                            snake_game.game_screen.head_direction != 2
+                            and event.key == pygame.K_DOWN
+                        ):
+                            snake_game.game_screen.head_direction = 4
+                        button_free = False
 
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+
                     try:
+
                         snake_game.title_screen
+
                         if snake_game.title_screen.on_button_click() == "start":
+
                             snake_game.title_screen.on_end()
                             snake_game.game_screen.on_start()
+
                             snake_game.score_screen.on_start()
+
                         elif snake_game.title_screen.on_button_click() == "exit":
                             snake_game.on_end()
                     except:

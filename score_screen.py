@@ -24,7 +24,6 @@ class ScoreScreen(BaseScreen):
     bottom: int = None
     right: int = None
     player_score = 0
-    cpu_score = 0
 
     fps = 0
 
@@ -87,7 +86,7 @@ class ScoreScreen(BaseScreen):
                 ],
             )
             scores = self.font.render(
-                f"{self.player_score} | {self.cpu_score}",
+                f"{self.player_score}",
                 True,
                 COLOUR_WHITE,
             )

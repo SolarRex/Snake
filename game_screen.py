@@ -58,18 +58,18 @@ class GameScreen(BaseScreen):
         self.font = font.SysFont("arial", 50)
         self.small_font = font.SysFont("arial", 25)
 
-        self.food = BaseFood(
-            "food",
-            random.uniform(self.left, self.right),
-            random.uniform(self.top, self.bottom),
-        )
-
         self.head = BaseBody(
             "head", self.left + self.width / 2, self.top + self.height / 2
         )
         self.head_direction = 0  # 0 not moving, 1 left, 2 up, 3 right, 4 down
 
         self.body: list[BaseBody] = [self.head]
+
+        self.food = BaseFood(
+            "food",
+            random.randint(self.left, self.right - self.head.width),
+            random.randint(self.top, self.bottom - self.head.height),
+        )
 
         self.paused_text = self.font.render(
             f"PAUSED",
@@ -118,15 +118,30 @@ class GameScreen(BaseScreen):
 
         self.player_score = 0
 
-        self.head.set_position(self.left + self.width / 2, self.top + self.height / 2)
+        self.head.set_position(
+            int(self.left + self.width / 2), int(self.top + self.height / 2)
+        )
 
         self.head_direction = 0
 
         self.body = [self.head]
 
-        for x in range(self.left, self.width):
-            for y in range(self.top, self.height):
-                self.set_available(x, y, 1, 1, True)
+        # for x in range(self.left, self.right):
+        #     for y in range(self.top, self.bottom):
+        #         self.set_available(x, y, 1, 1, True)
+
+        self.food.set_position(
+            random.randint(self.left, self.right - self.head.width),
+            random.randint(self.top, self.bottom - self.head.height),
+        )
+
+        self.set_available(
+            self.left,
+            self.top,
+            self.width - self.head.width,
+            self.height - self.head.height,
+            True,
+        )
 
         self.set_available(
             self.head.left, self.head.top, self.head.width, self.head.height
@@ -156,12 +171,12 @@ class GameScreen(BaseScreen):
             for y in range(top, top + height):
                 self.free_pixel[(x, y)] = available
 
-    def render(self, screen: Surface, mouse_pos=None):
+    def register_on_callback(self, name: str, value: bool) -> bool:
+        return value
+
+    def render(self, screen: Surface, callback, mouse_pos=None):
         if self.showing:
             self.food.draw_food(screen)
-            for body in self.body:
-                body.follow()
-                body.draw_body(screen)
 
             if not self.paused:  # 0 not moving, 1 left, 2 up, 3 right, 4 down
                 last_body_piece = self.body[-1]
@@ -173,6 +188,15 @@ class GameScreen(BaseScreen):
                     int(last_body_piece.height),
                     True,
                 )
+                for body in reversed(self.body):
+                    body.draw_body(screen)
+                    callback(
+                        "body_crash",
+                        body.name != "head"
+                        and self.head.body_box.colliderect(body.body_box),
+                    )
+                    body.follow()
+
                 if self.head_direction == 1:
                     self.head.set_position(
                         self.head.left - self.head.width * self.difficulty,
@@ -194,6 +218,14 @@ class GameScreen(BaseScreen):
                         self.head.top + self.head.width * self.difficulty,
                     )
                 x, y = self.head.get_position()
+                callback(
+                    "wall_crash",
+                    x < self.left
+                    or x >= self.right
+                    or y < self.top
+                    or y >= self.bottom,
+                )
+
                 self.set_available(
                     int(x), int(y), int(self.head.width), int(self.head.height), False
                 )
@@ -206,15 +238,20 @@ class GameScreen(BaseScreen):
                     self.food.set_position(choice[0], choice[1])
                     self.player_score = self.player_score + 1
                     new_body = BaseBody(
-                        f"body_piece_{self.player_score - 1}",
-                        self.body[self.player_score - 1].left,
-                        self.body[self.player_score - 1].top,
+                        f"body_piece_{self.player_score}",
+                        -1,
+                        -1,
                         follows=self.body[self.player_score - 1],
                     )
                     self.body.append(new_body)
 
+                    print(len(self.body))
+
             else:
                 screen.blit(self.paused_text, self.paused_text_rect)
+
+                for body in self.body:
+                    body.draw_body(screen)
 
                 # button
 

@@ -36,14 +36,14 @@ class BaseFood:
             self.height,
         )
 
-    def set_position(self, centerx, centery):
-        self.centerx = centerx
-        self.left = self.centerx - self.width / 2
-        self.right = self.centerx + self.width / 2
+    def set_position(self, left, top):
+        self.left = left
+        self.centerx = self.left + self.width / 2
+        self.right = self.left + self.width
 
-        self.centery = centery
-        self.top = self.centery - self.height / 2
-        self.bottom = self.centery + self.height / 2
+        self.top = top
+        self.centery = self.centery + self.height / 2
+        self.bottom = self.top + self.height
 
         self.food_box.left = self.left
         self.food_box.top = self.top
