@@ -4,6 +4,7 @@ import argparse
 import keyboard  # pip install keyboard
 import sys
 import random
+import time
 
 from base_screen import BaseScreen
 from base_button import Button
@@ -14,6 +15,7 @@ COLOUR_BLACK = (0, 0, 0)
 COLOUR_WHITE = (255, 255, 255)
 COLOUR_GREEN = (0, 255, 0)
 COLOUR_RED = (255, 0, 0)
+COLOUR_DARK_GREEN = (0, 100, 0)
 
 
 class GameScreen(BaseScreen):
@@ -62,7 +64,32 @@ class GameScreen(BaseScreen):
             "head", self.left + self.width / 2, self.top + self.height / 2
         )
         self.head_direction = 0  # 0 not moving, 1 left, 2 up, 3 right, 4 down
-
+        self.left_eye = BaseBody(
+            "left_eye",
+            self.head.left + 1,
+            self.head.top + 1,
+            1,
+            1,
+            colour=COLOUR_BLACK,
+        )
+        self.right_eye = BaseBody(
+            "right_eye",
+            self.head.right - 2,
+            self.head.top + 1,
+            1,
+            1,
+            colour=COLOUR_BLACK,
+        )
+        self.tongue = BaseBody(
+            "tongue",
+            self.head.left + 2,
+            self.head.top - 4,
+            3,
+            4,
+            colour=COLOUR_RED,
+        )
+        print(self.head.left)
+        print(self.tongue.left)
         self.body: list[BaseBody] = [self.head]
 
         self.food = BaseFood(
@@ -117,10 +144,18 @@ class GameScreen(BaseScreen):
         self.paused = False
 
         self.player_score = 0
+        headx = int(self.left + self.width / 2)
+        headx = headx - (headx % self.head.width)
 
-        self.head.set_position(
-            int(self.left + self.width / 2), int(self.top + self.height / 2)
-        )
+        heady = int(self.top + self.height / 2)
+        heady = heady - (heady % self.head.height)
+
+        self.head.set_position(headx, heady)
+        self.left_eye.set_position(self.head.left + 1, self.head.top + 1)
+        self.right_eye.set_position(self.head.right - 2, self.head.top + 1)
+        self.tongue.set_position(self.head.left + 1, self.head.top - 4)
+        self.tongue_showing = True
+        self.last_pause_time = time.time()
 
         self.head_direction = 0
 
@@ -167,8 +202,8 @@ class GameScreen(BaseScreen):
     def set_available(
         self, left: int, top: int, width: int, height: int, available: bool = False
     ):
-        for x in range(left, left + width):
-            for y in range(top, top + height):
+        for x in range(left, left + width, self.head.width):
+            for y in range(top, top + height, self.head.height):
                 self.free_pixel[(x, y)] = available
 
     def register_on_callback(self, name: str, value: bool) -> bool:
@@ -176,6 +211,8 @@ class GameScreen(BaseScreen):
 
     def render(self, screen: Surface, callback, mouse_pos=None):
         if self.showing:
+            rect_area = pygame.Rect(self.left, self.top, self.width, self.height)
+            screen.fill(COLOUR_DARK_GREEN, rect_area)
             self.food.draw_food(screen)
 
             if not self.paused:  # 0 not moving, 1 left, 2 up, 3 right, 4 down
@@ -196,27 +233,52 @@ class GameScreen(BaseScreen):
                         and self.head.body_box.colliderect(body.body_box),
                     )
                     body.follow()
+                self.left_eye.draw_body(screen)
+                self.right_eye.draw_body(screen)
 
                 if self.head_direction == 1:
                     self.head.set_position(
                         self.head.left - self.head.width * self.difficulty,
                         self.head.top,
                     )
+                    self.left_eye.set_position(self.head.left + 1, self.head.bottom - 2)
+                    self.right_eye.set_position(self.head.left + 1, self.head.top + 1)
+                    self.tongue.set_dim(4, 3)
+                    self.tongue.set_position(self.head.left - 4, self.head.top + 1)
                 elif self.head_direction == 2:
                     self.head.set_position(
                         self.head.left,
                         self.head.top - self.head.width * self.difficulty,
                     )
+                    self.left_eye.set_position(self.head.left + 1, self.head.top + 1)
+                    self.right_eye.set_position(self.head.right - 2, self.head.top + 1)
+                    self.tongue.set_dim(3, 4)
+                    self.tongue.set_position(self.head.left + 1, self.head.top - 4)
                 elif self.head_direction == 3:
                     self.head.set_position(
                         self.head.left + self.head.width * self.difficulty,
                         self.head.top,
                     )
+                    self.left_eye.set_position(self.head.right - 2, self.head.top + 1)
+                    self.right_eye.set_position(
+                        self.head.right - 2, self.head.bottom - 2
+                    )
+                    self.tongue.set_dim(4, 3)
+                    self.tongue.set_position(self.head.right, self.head.top + 1)
                 elif self.head_direction == 4:
                     self.head.set_position(
                         self.head.left,
                         self.head.top + self.head.width * self.difficulty,
                     )
+                    self.left_eye.set_position(
+                        self.head.right - 2, self.head.bottom - 2
+                    )
+                    self.right_eye.set_position(
+                        self.head.left + 1, self.head.bottom - 2
+                    )
+                    self.tongue.set_dim(3, 4)
+                    self.tongue.set_position(self.head.left + 1, self.head.bottom)
+
                 x, y = self.head.get_position()
                 callback(
                     "wall_crash",
@@ -234,6 +296,12 @@ class GameScreen(BaseScreen):
                     key for key, value in self.free_pixel.items() if value is True
                 ]
                 if self.head.body_box.colliderect(self.food.food_box):
+                    sound = pygame.mixer.Sound(
+                        "game_sounds\\freesound_community-arcade-bleep-sound-6071.mp3"
+                    )
+                    sound.set_volume(0.1)
+                    sound.play()
+
                     choice = random.choice(list(true_keys))
                     self.food.set_position(choice[0], choice[1])
                     self.player_score = self.player_score + 1
@@ -248,11 +316,24 @@ class GameScreen(BaseScreen):
                     print(len(self.body))
 
             else:
+                if self.tongue_showing and time.time() - self.last_pause_time >= 3:
+                    self.tongue_showing = False
+                    self.last_pause_time = time.time()
+                elif (
+                    not self.tongue_showing
+                    and time.time() - self.last_pause_time >= 0.5
+                ):
+                    self.last_pause_time = time.time()
+                    self.tongue_showing = True
+
                 screen.blit(self.paused_text, self.paused_text_rect)
 
                 for body in self.body:
                     body.draw_body(screen)
-
+                self.left_eye.draw_body(screen)
+                self.right_eye.draw_body(screen)
+                if self.tongue_showing:
+                    self.tongue.draw_body(screen)
                 # button
 
                 self.pause_button.is_hovering(mouse_pos)

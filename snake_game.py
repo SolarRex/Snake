@@ -73,11 +73,17 @@ class Snake:
         self.previous_time_tick = time.time()
         self.callback_queue = queue.Queue()
 
+        pygame.mixer.init()
+        pygame.mixer.music.load(
+            "game_sounds\sonican-background-music-new-age-nature-465069.mp3"
+        )
+        pygame.mixer.music.set_volume(0.1)
+
     def on_callback(self, callable):
         threading.Thread(target=callable, daemon=True).start()
 
     def on_start(self):
-
+        pygame.mixer.music.play(-1)
         self.running = True
         self.title_screen.on_start()
         self.player_score = 0
@@ -195,6 +201,7 @@ def main():
         xfullscreen=args_info["xfullscreen"],
         player_name=args_info["player_name"],
     )
+
     snake_game.on_start()
 
     snake_game.count = 0

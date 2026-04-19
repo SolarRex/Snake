@@ -26,6 +26,7 @@ class BaseBody:
         width: int = 5,
         height: int = 5,
         follows=None,
+        colour=COLOUR_WHITE,
     ):
         pygame.init()
 
@@ -34,7 +35,7 @@ class BaseBody:
         self.top = top
         self.width = width
         self.height = height
-        self.centerx = left - width / 2
+        self.centerx = left + width / 2
         self.centery = top + height / 2
         self.bottom = top + height
         self.right = left + width
@@ -45,12 +46,23 @@ class BaseBody:
             self.height,
         )
         self.follows = follows
+        self.colour = colour
 
     # def __del__(self):
     #     try:
     #         self.on_end()
     #     except:
     #         pass
+    def set_dim(self, width: int, height: int):
+        self.width = width
+        self.height = height
+        self.body_box = pygame.Rect(
+            self.left,
+            self.top,
+            self.width,
+            self.height,
+        )
+
     def set_position(self, left: int, top: int):
         self.left = left
         self.top = top
@@ -71,6 +83,6 @@ class BaseBody:
     def draw_body(self, screen: Surface):
         pygame.draw.rect(
             screen,
-            COLOUR_WHITE,
+            self.colour,
             self.body_box,
         )
