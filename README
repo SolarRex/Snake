@@ -1,6 +1,7 @@
 To run type python snake_game.py 
 
-Inputs include, --width, --height, --fullscreen, --exclusive_fullscreen
+Inputs include, --width, --height, --fullscreen, --exclusive_fullscreen --player_name
 width and height: Chooses the width and height of the game screen.
 fullscreen: Overrides width and height, sets the width and height based on the screen.
-exclusive fullscreen: self explanatory (resolution depends on the width and height)
+exclusive fullscreen: Self explanatory (resolution depends on the width and height).
+player name: Name that is saved with the score in the scores.txt file.

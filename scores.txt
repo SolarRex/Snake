@@ -1,3 +1,1 @@
-Barr,9
-Barr,7
-Barr,5
+Barr,6
